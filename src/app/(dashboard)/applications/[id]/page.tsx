@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter, useParams } from 'next/navigation'
+import { useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Application, ApplicationStatus, STATUS_LABELS, STATUS_COLORS } from '@/types'
 import { SkillsBadges } from '@/components/skills-badges'
@@ -21,7 +21,6 @@ const statuses: ApplicationStatus[] = ['saved', 'applied', 'interview', 'rejecte
 
 export default function ApplicationDetailPage() {
   const params = useParams()
-  const router = useRouter()
   const supabase = createClient()
 
   const [app, setApp] = useState<Application | null>(null)
@@ -42,6 +41,7 @@ export default function ApplicationDetailPage() {
       }
     }
     load()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.id])
 
   async function updateStatus(status: ApplicationStatus) {
