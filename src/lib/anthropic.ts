@@ -1,15 +1,20 @@
-import Anthropic from '@anthropic-ai/sdk'
+import OpenAI from 'openai'
 import { ExtractedSkills } from '@/types'
 
-const client = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
+const client = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
 })
 
 export async function analyzeJobDescription(jobDescription: string): Promise<ExtractedSkills> {
-  const message = await client.messages.create({
-    model: 'claude-haiku-4-5-20251001',
+  const response = await client.chat.completions.create({
+    model: 'gpt-4o-mini',
     max_tokens: 1024,
+    response_format: { type: 'json_object' },
     messages: [
+      {
+        role: 'system',
+        content: 'You are a job description analyzer. Always respond with valid JSON only.',
+      },
       {
         role: 'user',
         content: `Analyze this job description and return a JSON object with exactly these fields:
@@ -18,20 +23,15 @@ export async function analyzeJobDescription(jobDescription: string): Promise<Ext
 - "seniority": one of "junior", "mid", "senior", or "unknown"
 
 Job description:
-${jobDescription}
-
-Return ONLY valid JSON, no markdown, no explanation.`,
+${jobDescription}`,
       },
     ],
   })
 
-  const content = message.content[0]
-  if (content.type !== 'text') {
-    return { skills: [], keywords: [], seniority: 'unknown' }
-  }
+  const text = response.choices[0]?.message?.content ?? ''
 
   try {
-    const parsed = JSON.parse(content.text)
+    const parsed = JSON.parse(text)
     return {
       skills: Array.isArray(parsed.skills) ? parsed.skills : [],
       keywords: Array.isArray(parsed.keywords) ? parsed.keywords : [],
