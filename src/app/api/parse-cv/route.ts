@@ -17,14 +17,19 @@ export async function POST(request: NextRequest) {
   const buffer = Buffer.from(await file.arrayBuffer())
   let rawText = ''
 
-  if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const pdfParse = require('pdf-parse')
-    const parsed = await pdfParse(buffer)
-    rawText = parsed.text
-  } else {
-    // Plain text / .txt file
-    rawText = buffer.toString('utf-8')
+  try {
+    if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
+      // Use lib path directly to bypass pdf-parse test file loading issue in Next.js
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const pdfParse = require('pdf-parse/lib/pdf-parse.js')
+      const parsed = await pdfParse(buffer)
+      rawText = parsed.text
+    } else {
+      rawText = buffer.toString('utf-8')
+    }
+  } catch (err) {
+    console.error('PDF parse error:', err)
+    return NextResponse.json({ error: 'Failed to parse CV file' }, { status: 422 })
   }
 
   if (!rawText.trim()) {
