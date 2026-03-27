@@ -49,6 +49,7 @@ export interface UserProfile {
   skills: string
   location: string
   extra: string
+  cvText?: string
 }
 
 export async function scoreJobMatches(
@@ -63,9 +64,13 @@ Description: ${desc}`
     })
     .join('\n\n')
 
+  const cvContext = profile.cvText
+    ? `\nCV extract:\n${profile.cvText.slice(0, 1500)}`
+    : ''
+
   const response = await client.chat.completions.create({
     model: 'gpt-4o-mini',
-    max_tokens: 1024,
+    max_tokens: 1500,
     response_format: { type: 'json_object' },
     messages: [
       {
@@ -78,7 +83,7 @@ Description: ${desc}`
 - Looking for: ${profile.role}
 - Skills: ${profile.skills}
 - Location preference: ${profile.location}
-- Additional context: ${profile.extra}
+- Additional context: ${profile.extra}${cvContext}
 
 Rate each of the following ${jobs.length} job listings for this student (0-100 match score).
 Return a JSON object with a "results" array of exactly ${jobs.length} items in the same order:

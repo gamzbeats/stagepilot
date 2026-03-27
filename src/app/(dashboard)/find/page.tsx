@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -26,15 +26,51 @@ export default function FindJobsPage() {
   const [results, setResults] = useState<ScoredJob[]>([])
   const [added, setAdded] = useState<Set<string>>(new Set())
   const [searched, setSearched] = useState(false)
+  const [cvText, setCvText] = useState('')
+  const [cvStatus, setCvStatus] = useState<'idle' | 'parsing' | 'done' | 'error'>('idle')
+  const [cvFileName, setCvFileName] = useState('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const supabase = createClient()
 
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<SearchForm>({
     resolver: zodResolver(searchSchema),
   })
+
+  async function handleCvUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setCvFileName(file.name)
+    setCvStatus('parsing')
+    setCvText('')
+
+    const formData = new FormData()
+    formData.append('cv', file)
+
+    const res = await fetch('/api/parse-cv', { method: 'POST', body: formData })
+
+    if (!res.ok) {
+      setCvStatus('error')
+      return
+    }
+
+    const json = await res.json()
+    const profile = json.profile ?? {}
+
+    // Auto-fill skills and extra fields from CV
+    if (profile.skills) setValue('skills', profile.skills)
+    if (profile.experience || profile.summary) {
+      setValue('extra', [profile.summary, profile.experience].filter(Boolean).join(' '))
+    }
+
+    setCvText(json.rawText ?? '')
+    setCvStatus('done')
+  }
 
   async function onSubmit(data: SearchForm) {
     setResults([])
@@ -43,7 +79,7 @@ export default function FindJobsPage() {
     const res = await fetch('/api/search-jobs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
+      body: JSON.stringify({ ...data, cvText }),
     })
 
     if (res.ok) {
@@ -82,16 +118,67 @@ export default function FindJobsPage() {
       <Card className="mb-8">
         <CardHeader>
           <CardTitle className="text-base">Your profile</CardTitle>
-          <CardDescription>Fill in your preferences to get personalized results</CardDescription>
+          <CardDescription>Upload your CV or fill in your preferences manually</CardDescription>
         </CardHeader>
         <CardContent>
+          {/* CV Upload */}
+          <div className="mb-5 p-4 border-2 border-dashed border-slate-200 rounded-lg hover:border-blue-300 transition-colors">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.txt"
+              className="hidden"
+              onChange={handleCvUpload}
+            />
+            <div className="flex items-center gap-4">
+              <div className="flex-1">
+                {cvStatus === 'idle' && (
+                  <div>
+                    <p className="text-sm font-medium text-slate-700">Upload your CV</p>
+                    <p className="text-xs text-slate-500 mt-0.5">PDF or TXT — skills and context will be auto-filled</p>
+                  </div>
+                )}
+                {cvStatus === 'parsing' && (
+                  <div className="flex items-center gap-2">
+                    <svg className="animate-spin w-4 h-4 text-blue-500" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    <span className="text-sm text-slate-600">Extracting your profile with AI...</span>
+                  </div>
+                )}
+                {cvStatus === 'done' && (
+                  <div className="flex items-center gap-2">
+                    <span className="w-5 h-5 bg-green-100 text-green-600 rounded-full flex items-center justify-center text-xs font-bold">✓</span>
+                    <div>
+                      <p className="text-sm font-medium text-green-700">{cvFileName} — analyzed</p>
+                      <p className="text-xs text-slate-500">Skills and context auto-filled below</p>
+                    </div>
+                  </div>
+                )}
+                {cvStatus === 'error' && (
+                  <p className="text-sm text-red-500">Failed to parse CV. Try a different file or fill manually.</p>
+                )}
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={cvStatus === 'parsing'}
+              >
+                {cvStatus === 'done' ? 'Change CV' : 'Choose file'}
+              </Button>
+            </div>
+          </div>
+
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="role">Job title / Role *</Label>
                 <Input
                   id="role"
-                  placeholder="e.g. Software Engineer, Data Analyst"
+                  placeholder="e.g. Data Analyst, Software Engineer"
                   {...register('role')}
                 />
                 {errors.role && (
@@ -110,22 +197,29 @@ export default function FindJobsPage() {
 
             <div className="space-y-2">
               <Label htmlFor="skills">
-                Your skills{' '}
-                <span className="text-slate-400 font-normal text-xs">(used for AI matching)</span>
+                Your skills
+                {cvStatus === 'done' && (
+                  <span className="ml-2 text-xs text-green-600 font-normal">✓ extracted from CV</span>
+                )}
               </Label>
               <Textarea
                 id="skills"
-                placeholder="e.g. React, TypeScript, Python, Machine Learning, SQL..."
+                placeholder="e.g. Python, SQL, Excel, Power BI, Machine Learning..."
                 rows={2}
                 {...register('skills')}
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="extra">Additional context</Label>
+              <Label htmlFor="extra">
+                Additional context
+                {cvStatus === 'done' && (
+                  <span className="ml-2 text-xs text-green-600 font-normal">✓ extracted from CV</span>
+                )}
+              </Label>
               <Textarea
                 id="extra"
-                placeholder="e.g. Looking for a 6-month internship in a startup, interested in AI products..."
+                placeholder="e.g. Looking for a 6-month internship, experience in finance sector..."
                 rows={2}
                 {...register('extra')}
               />
@@ -168,7 +262,7 @@ export default function FindJobsPage() {
         <div>
           <div className="flex items-center justify-between mb-4">
             <p className="text-sm text-slate-600 font-medium">
-              {results.length} internships found — sorted by AI match score
+              {results.length} internship{results.length > 1 ? 's' : ''} found — sorted by AI match score
             </p>
           </div>
           <div className="space-y-3">

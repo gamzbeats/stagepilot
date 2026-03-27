@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json()
-  const { role, location, skills, extra } = body
+  const { role, location, skills, extra, cvText } = body
 
   if (!role) {
     return NextResponse.json({ error: 'Role is required' }, { status: 400 })
@@ -25,8 +25,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ results: [] })
   }
 
-  // 2. Score all jobs in one AI call
-  const scores = await scoreJobMatches({ role, skills: skills ?? '', location: location ?? '', extra: extra ?? '' }, jobs)
+  // 2. Score all jobs in one AI call (with CV context if provided)
+  const scores = await scoreJobMatches(
+    { role, skills: skills ?? '', location: location ?? '', extra: extra ?? '', cvText: cvText ?? '' },
+    jobs
+  )
 
   // 3. Merge and sort by score descending
   const results = jobs

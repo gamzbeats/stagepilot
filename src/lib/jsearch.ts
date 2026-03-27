@@ -2,14 +2,11 @@ import { JSearchJob } from '@/types'
 
 const JSEARCH_URL = 'https://jsearch.p.rapidapi.com/search'
 
-export async function searchJobs(query: string, location?: string): Promise<JSearchJob[]> {
-  const fullQuery = location ? `${query} internship ${location}` : `${query} internship`
-
+async function fetchJobs(query: string): Promise<JSearchJob[]> {
   const params = new URLSearchParams({
-    query: fullQuery,
+    query,
     page: '1',
     num_pages: '1',
-    date_posted: 'month',
   })
 
   const response = await fetch(`${JSEARCH_URL}?${params}`, {
@@ -27,4 +24,30 @@ export async function searchJobs(query: string, location?: string): Promise<JSea
 
   const data = await response.json()
   return (data.data ?? []) as JSearchJob[]
+}
+
+export async function searchJobs(query: string, location?: string): Promise<JSearchJob[]> {
+  // Run two queries in parallel: English "internship" + French "stage"
+  // to maximise results especially for French cities like Paris
+  const base = location ? `${query} ${location}` : query
+  const queries = [`${base} internship`, `${base} stage`]
+
+  const results = await Promise.allSettled(queries.map(fetchJobs))
+
+  // Merge, deduplicate by job_id, keep up to 20
+  const seen = new Set<string>()
+  const merged: JSearchJob[] = []
+
+  for (const result of results) {
+    if (result.status === 'fulfilled') {
+      for (const job of result.value) {
+        if (!seen.has(job.job_id)) {
+          seen.add(job.job_id)
+          merged.push(job)
+        }
+      }
+    }
+  }
+
+  return merged.slice(0, 20)
 }
