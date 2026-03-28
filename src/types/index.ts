@@ -15,8 +15,11 @@ export interface Application {
   job_description: string | null
   extracted_skills: ExtractedSkills | null
   notes: string | null
+  location: string | null
   applied_at: string | null
   created_at: string
+  follow_up_count: number
+  last_follow_up_at: string | null
 }
 
 export const STATUS_LABELS: Record<ApplicationStatus, string> = {
@@ -28,11 +31,11 @@ export const STATUS_LABELS: Record<ApplicationStatus, string> = {
 }
 
 export const STATUS_COLORS: Record<ApplicationStatus, string> = {
-  saved: 'bg-slate-100 text-slate-700',
-  applied: 'bg-blue-100 text-blue-700',
-  interview: 'bg-yellow-100 text-yellow-700',
-  rejected: 'bg-red-100 text-red-700',
-  offer: 'bg-green-100 text-green-700',
+  saved: 'bg-slate-800/60 text-slate-300 border border-slate-700/40',
+  applied: 'bg-blue-950/60 text-blue-300 border border-blue-800/40',
+  interview: 'bg-amber-950/60 text-amber-300 border border-amber-800/40',
+  rejected: 'bg-red-950/60 text-red-300 border border-red-800/40',
+  offer: 'bg-emerald-950/60 text-emerald-300 border border-emerald-800/40',
 }
 
 // JSearch types
@@ -56,4 +59,13 @@ export interface ScoredJob {
   job: JSearchJob
   score: number
   reason: string
+}
+
+export interface ImportedJobData {
+  company: string
+  role: string
+  description: string
+  location: string | null
+  apply_link: string | null
+  notes: string | null
 }

@@ -1,5 +1,5 @@
 import OpenAI from 'openai'
-import { ExtractedSkills, JSearchJob } from '@/types'
+import { ExtractedSkills, ImportedJobData, JSearchJob } from '@/types'
 
 const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -111,4 +111,46 @@ ${jobList}`,
   }
 
   return jobs.map(() => ({ score: 50, reason: '' }))
+}
+
+export async function extractJobFromText(text: string): Promise<ImportedJobData> {
+  const response = await client.chat.completions.create({
+    model: 'gpt-4o-mini',
+    max_tokens: 1500,
+    response_format: { type: 'json_object' },
+    messages: [
+      {
+        role: 'system',
+        content: 'You are a job posting parser. Extract structured job data from the provided text and return JSON only.',
+      },
+      {
+        role: 'user',
+        content: `Extract from this job posting page text:
+- "company": the company/employer name
+- "role": the job title/position
+- "description": the full job description text (max 2000 chars)
+- "location": city/country or "Remote" if mentioned, null if not found
+- "apply_link": the application URL if present, null otherwise
+- "notes": a short summary (2-4 lines) of the most useful practical details for a candidate: salary/compensation if mentioned, internship duration if mentioned, start date if mentioned, remote/hybrid/on-site work mode, any other key info. Write in French. Return null if nothing relevant is found.
+
+Page text:
+${text.slice(0, 8000)}`,
+      },
+    ],
+  })
+
+  const raw = response.choices[0]?.message?.content ?? '{}'
+  try {
+    const parsed = JSON.parse(raw)
+    return {
+      company: typeof parsed.company === 'string' ? parsed.company : '',
+      role: typeof parsed.role === 'string' ? parsed.role : '',
+      description: typeof parsed.description === 'string' ? parsed.description.slice(0, 2000) : '',
+      location: typeof parsed.location === 'string' ? parsed.location : null,
+      apply_link: typeof parsed.apply_link === 'string' ? parsed.apply_link : null,
+      notes: typeof parsed.notes === 'string' ? parsed.notes : null,
+    }
+  } catch {
+    return { company: '', role: '', description: text.slice(0, 500), location: null, apply_link: null, notes: null }
+  }
 }

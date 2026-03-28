@@ -28,3 +28,16 @@ create policy "Users can manage their own applications"
 create index if not exists applications_user_id_idx on applications(user_id);
 create index if not exists applications_status_idx on applications(status);
 create index if not exists applications_created_at_idx on applications(created_at desc);
+
+-- Migration: follow-up tracking columns
+-- Run this block separately if the table already exists
+alter table applications
+  add column if not exists follow_up_count integer not null default 0,
+  add column if not exists last_follow_up_at timestamptz;
+
+create index if not exists applications_last_follow_up_idx
+  on applications(last_follow_up_at desc nulls last);
+
+-- Migration: location column
+alter table applications
+  add column if not exists location text;
